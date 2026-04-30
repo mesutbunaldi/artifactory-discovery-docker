@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM benim.repom.com:5001/artifactory/python:3.12-slim
 
 # Sistem bağımlılıkları (curl ve jq)
 RUN apt-get update && \

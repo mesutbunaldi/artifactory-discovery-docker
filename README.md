@@ -1,121 +1,86 @@
-# Artifactory Discovery (Docker)
+# Artifactory Discovery (Docker) — v2
 
-100+ repolu Artifactory ortamını tarayıp:
-- Hangi servisler publish ediyor
-- Hangi teknolojilerle (Maven, NuGet, npm, Docker, Helm, ...)
-- Hangi CI tool'larıyla (Jenkins, GitLab CI, ...)
-- Hangi VCS repodan (Bitbucket / GitLab) geliyor
+Generic repolar dahil tüm artifact'lerden teknoloji tespiti yapar.
 
-→ Excel raporu olarak çıkartır.
+## Yenilikler (v2)
+
+- 🎯 **Generic repo desteği** — `.jar`, `.nupkg`, `.whl`, `.tgz` gibi dosyaları uzantı + path pattern + (opsiyonel) içerik analiziyle tanır
+- 📋 **Yeni sheet'ler**: Generic Repo Breakdown + Belirsiz Artifact Listesi
+- 🔬 **Deep Inspect modu** — belirsiz arşivlerin içine bakıp manifest dosyalarından (META-INF/MANIFEST.MF, package.json, Chart.yaml) teknolojiyi tespit eder
 
 ## Mac'te Hızlı Başlangıç
 
-### 1. Docker Desktop'ı Yükle
-
-Mac App Store'dan değil, resmi siteden:
+### 1. Docker Desktop'ı yükle
 https://www.docker.com/products/docker-desktop/
 
-Yükledikten sonra Docker Desktop'ı başlat (ilk açılışta birkaç dakika alabilir).
-
-### 2. Bu klasördeki dosyaları aç
-
-Bu klasörde 4 dosya olmalı:
+### 2. 4 dosyayı aynı klasöre koy
 - `Dockerfile`
 - `artifactory-discovery.sh`
-- `artifactory-discovery.env`  ← **sadece bunu düzenleyeceksin**
+- `artifactory-discovery.env`
 - `run.sh`
 
-### 3. Env dosyasını düzenle
-
-Terminal'de:
+### 3. Env'i doldur
 ```bash
-cd ~/Downloads/artifactory-discovery   # dosyaların olduğu yer
-nano artifactory-discovery.env         # veya: open -e artifactory-discovery.env
+nano artifactory-discovery.env
 ```
-
-Doldur:
-```
-ARTIFACTORY_URL="https://artifactory.sirket.com/artifactory"
-ARTIFACTORY_USER="senin-kullanici-adın"
-ARTIFACTORY_TOKEN="api-token-veya-sifre"
-```
-
-API token nasıl alınır:
-- Artifactory web UI'a gir → sağ üst → profil ikonu
-- "Generate API Key" veya "Generate Identity Token"
-- Çıkan değeri kopyala, `ARTIFACTORY_TOKEN` alanına yapıştır
+- `ARTIFACTORY_URL`, `ARTIFACTORY_USER`, `ARTIFACTORY_TOKEN` zorunlu
+- `DEEP_INSPECT=true` yaparsan generic repolardaki şüpheli dosyaların içine de bakar (yavaş ama kesin)
 
 ### 4. Çalıştır
-
 ```bash
 chmod +x run.sh
 ./run.sh
 ```
 
-İlk çalıştırmada Docker image build edilecek (3-5 dakika). Sonraki çalıştırmalarda doğrudan başlayacak.
+## Çıktı: 7 Sheet'lik Excel
 
-### 5. Çıktıyı al
+| # | Sheet | İçerik |
+|---|---|---|
+| 1 | Publish Eden Servisler | Ana liste — language, build_tool, confidence, detection_source |
+| 2 | Generic Repolar | Generic repo'larda hangi tipte ne kadar artifact var |
+| 3 | Artifactory Repo Özeti | Hangi repoda kaç artifact, primary_language |
+| 4 | Teknoloji Dağılımı | Java: X, .NET: Y, Node: Z |
+| 5 | Yeni Repo Önerileri | Yeni Artifactory için repo listesi |
+| 6 | Aktif Olmayan Repolar | Cleanup adayları |
+| 7 | Belirsiz Artifact'ler | Tespit edilemeyenler (manuel inceleme listesi) |
 
-```bash
-open output/artifactory-discovery-report.xlsx
-```
+## Confidence Seviyeleri (Sheet 1)
 
-## Çıktı: Excel Raporu (5 Sheet)
-
-| Sheet | İçerik |
+| Confidence | Anlamı |
 |---|---|
-| 1. Publish Eden Servisler | Ana liste — vcs_url, dil, build_tool, ci_tool, artifactory_repo |
-| 2. Artifactory Repo Özeti | Hangi repoda kaç artifact, son publish ne zaman |
-| 3. Teknoloji Dağılımı | Java: X, .NET: Y, Node: Z |
-| 4. Yeni Repo Önerileri | Yeni Artifactory için repo listesi |
-| 5. Aktif Olmayan Repolar | Son N gündür publish yok (cleanup adayları) |
+| `high` | Native package type veya kesin uzantı (.jar, .nupkg) — güvenilebilir |
+| `medium` | Path pattern veya ambigu uzantı (.dll, manifest.json) — büyük ihtimalle doğru |
+| `low` | Sadece dosya adından tahmin (weird.tar.gz) — DEEP_INSPECT ile doğrula |
+| `none` | Hiç tespit edilemedi (mystery.bin) — manuel incele |
 
-## İleri Kullanım
+## Detection Source (nasıl tespit edildi)
 
-### Tarihi değiştirmek (kaç gün geriye?)
+| Source | Ne demek |
+|---|---|
+| `package-type` | Artifactory native package type (Maven/NuGet/npm/...) — en güvenilir |
+| `extension` | Dosya uzantısından (.jar, .nupkg, ...) |
+| `path-pattern` | Path desen eşleşmesi (Maven layout, Helm chart, ...) |
+| `filename+path` | Dosya adı + path kombinasyonu (npm `/-/`, Helm `chart`) |
+| `content-jar` | JAR içine bakılıp META-INF/MANIFEST.MF bulundu (DEEP_INSPECT) |
+| `content-chart` | tgz içinde Chart.yaml bulundu (DEEP_INSPECT) |
+| `build-info` | Sadece Artifactory build-info kaydından geldi |
+| `no-match` | Hiçbir kural eşleşmedi → manuel incele |
 
-`artifactory-discovery.env` dosyasında:
-```
-DAYS_BACK=365   # 1 yıl
-```
-
-### Image'ı yeniden build etmek
-
-Script güncellenirse:
-```bash
-docker rmi artifactory-discovery:latest
-./run.sh   # otomatik tekrar build edecek
-```
-
-### Manuel docker run (run.sh kullanmadan)
+## Debug için container'a exec atmak
 
 ```bash
-docker build -t artifactory-discovery .
-docker run --rm \
+# ENTRYPOINT'i bypass edip içine gir
+docker run --rm -it \
   -v "$(pwd)/artifactory-discovery.env:/app/config/artifactory-discovery.env:ro" \
   -v "$(pwd)/output:/app/output" \
-  artifactory-discovery
+  --entrypoint /bin/bash \
+  artifactory-discovery:latest
+
+# İçeride manuel test
+source /app/config/artifactory-discovery.env
+curl -v -u "$ARTIFACTORY_USER:$ARTIFACTORY_TOKEN" \
+  "$ARTIFACTORY_URL/api/repositories?type=local"
+
+# Script'i debug modda çalıştır
+bash -x /app/artifactory-discovery.sh
 ```
-
-## Sorun Giderme
-
-**"Cannot connect to Docker daemon"** → Docker Desktop başlatılmamış. Sağ üstteki balina ikonu yeşil olmalı.
-
-**"401 Unauthorized" veya "403 Forbidden"** → Token yanlış veya süresi dolmuş. Yeni bir API token oluştur.
-
-**AQL "permission denied"** → Kullanıcının "Repositories Read" + "Builds Read" yetkisi olmalı. Artifactory admin'e sor.
-
-**"This site can't be reached" (curl errors)** → Artifactory URL yanlış veya VPN'de değilsin. URL'in doğru olduğundan emin ol (sondaki `/artifactory` dahil).
-
-**Excel boş geliyor** → Artifactory'de son N gün içinde publish yok demektir. `DAYS_BACK=365` yap, 1 yıla genişlet.
-
-## Mantık
-
-Repo bazlı tarama yerine **Artifactory'den geriye doğru** çalışıyoruz:
-
-```
-Artifactory'deki gerçek artifact'ler  →  build-info metadata  →  VCS URL
-       (gerçeğin tek kaynağı)              (kim/ne yayınladı)      (kaynak repo)
-```
-
-Bu sadece **gerçekten sürüm çıkan** servisleri yakalar — "yazılmış ama publish etmemiş" repolarda zaman kaybetmezsin.
