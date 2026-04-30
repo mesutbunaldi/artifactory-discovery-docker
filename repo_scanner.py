@@ -5,13 +5,26 @@ Jenkinsfile'ı API üzerinden çeker (klonlamadan).
 
 Tespit edilen build tool'lar manifest dosyasından gelir → en güçlü kanıt.
 """
+import os
 import re
+import ssl
 import base64
 import urllib.request
 import urllib.error
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional, Tuple
+
+
+def _get_ssl_context():
+    """VERIFY_SSL=false ise sertifika doğrulamasını kapat."""
+    verify = os.environ.get("VERIFY_SSL", "true").lower()
+    if verify in ("false", "0", "no", "n"):
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
+    return None
 
 # Aranacak dosyalar (öncelik sırasıyla)
 MANIFEST_FILES = [
@@ -41,8 +54,9 @@ MANIFEST_FILES = [
 def http_get(url: str, headers: dict, timeout: int = 15) -> Tuple[Optional[bytes], int]:
     """HTTP GET. (data, status_code) döner. 404 normal (dosya yok)."""
     req = urllib.request.Request(url, headers=headers)
+    ctx = _get_ssl_context()
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
             return resp.read(), resp.status
     except urllib.error.HTTPError as e:
         return None, e.code

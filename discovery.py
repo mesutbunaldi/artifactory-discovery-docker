@@ -13,6 +13,21 @@ import sys
 import json
 from pathlib import Path
 
+# SSL verify kapalıysa Python'un urllib3 uyarılarını sustur
+if os.environ.get("VERIFY_SSL", "true").lower() in ("false", "0", "no", "n"):
+    import warnings
+    import ssl
+    # urllib3 InsecureRequestWarning suppress (ileride requests kullanılırsa)
+    try:
+        from urllib3.exceptions import InsecureRequestWarning
+        warnings.filterwarnings("ignore", category=InsecureRequestWarning)
+    except ImportError:
+        pass
+    # Python 3.12+ deprecation
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    # urllib default context'i de değiştir (her ihtimale karşı)
+    ssl._create_default_https_context = ssl._create_unverified_context
+
 import ansible_scanner
 import jenkins_scanner
 import repo_scanner
@@ -101,6 +116,8 @@ def main():
     print(f"  Output dir    : {output_dir}")
     print(f"  Fetch logs    : {fetch_logs}")
     print(f"  Parallel      : jobs={parallel_jobs} repos={parallel_repos}")
+    verify_ssl = env_bool("VERIFY_SSL", True)
+    print(f"  Verify SSL    : {verify_ssl}" + (" ⚠️  (sertifika doğrulaması KAPALI)" if not verify_ssl else ""))
     print("═" * 60)
     
     # ─── ADIM 1: ansible-roles ─────────────────────────────────────────

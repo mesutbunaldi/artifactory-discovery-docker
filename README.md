@@ -156,6 +156,21 @@ FROM artifactory.sirket.com:5001/docker-remote/python:3.12-slim
 
 `docker login artifactory.sirket.com:5001` ile auth ol.
 
+## Self-Signed Sertifika / Internal CA
+
+Kurumsal ortamda Bitbucket/Jenkins/GitLab self-signed veya internal CA imzalı sertifika kullanıyorsa env'e ekle:
+
+```
+VERIFY_SSL=false
+```
+
+Bu ayar:
+- ✅ Python `urllib` çağrılarını (Jenkins API + Bitbucket/GitLab API) etkiler
+- ✅ `git clone` çağrılarını da etkiler (`GIT_SSL_NO_VERIFY=true` set eder)
+- ✅ `urllib3` InsecureRequestWarning uyarılarını susturur
+
+⚠️ Sadece güvenli internal ortamda kullan — production'da `VERIFY_SSL=true` (varsayılan) tut.
+
 ## Lisans
 
 MIT

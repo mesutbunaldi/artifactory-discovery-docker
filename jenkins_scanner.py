@@ -11,17 +11,32 @@ import base64
 import urllib.request
 import urllib.error
 import urllib.parse
+import os
+import ssl
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional, Set
+
+
+# SSL context — env'e göre verify on/off
+def _get_ssl_context():
+    """VERIFY_SSL=false ise sertifika doğrulamasını kapat."""
+    verify = os.environ.get("VERIFY_SSL", "true").lower()
+    if verify in ("false", "0", "no", "n"):
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
+    return None  # default — verify ON
 
 
 def http_get(url: str, user: str, token: str, timeout: int = 30) -> Optional[bytes]:
     """Basic Auth ile HTTP GET. Hata olursa None döner."""
     auth = base64.b64encode(f"{user}:{token}".encode()).decode()
     req = urllib.request.Request(url, headers={"Authorization": f"Basic {auth}"})
+    ctx = _get_ssl_context()
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
             return resp.read()
     except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as e:
         return None

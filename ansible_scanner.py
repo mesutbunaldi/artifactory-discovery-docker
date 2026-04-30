@@ -3,6 +3,7 @@ ansible_scanner.py
 ansible-roles repo'sunu klonlayıp her rolün tasks/*.yml dosyalarını tarar.
 Her rol için: hangi build tool komutlarını çağırıyor → eşleme tablosu.
 """
+import os
 import re
 import subprocess
 import shutil
@@ -85,21 +86,26 @@ def clone_or_update_repo(repo_url: str, branch: str, dest: Path,
     else:
         authed_url = repo_url
     
+    # SSL bypass için git env
+    git_env = os.environ.copy()
+    if os.environ.get("VERIFY_SSL", "true").lower() in ("false", "0", "no", "n"):
+        git_env["GIT_SSL_NO_VERIFY"] = "true"
+    
     if dest.exists() and (dest / ".git").exists():
         # Mevcut repo - güncelle
         subprocess.run(["git", "-C", str(dest), "fetch", "origin", branch],
-                       check=True, capture_output=True)
+                       check=True, capture_output=True, env=git_env)
         subprocess.run(["git", "-C", str(dest), "checkout", branch],
-                       check=True, capture_output=True)
+                       check=True, capture_output=True, env=git_env)
         subprocess.run(["git", "-C", str(dest), "reset", "--hard", f"origin/{branch}"],
-                       check=True, capture_output=True)
+                       check=True, capture_output=True, env=git_env)
     else:
         # Yeni klon - sadece dev branch, shallow
         if dest.exists():
             shutil.rmtree(dest)
         subprocess.run(["git", "clone", "--depth", "1", "--branch", branch,
                         authed_url, str(dest)],
-                       check=True, capture_output=True)
+                       check=True, capture_output=True, env=git_env)
     return True
 
 
