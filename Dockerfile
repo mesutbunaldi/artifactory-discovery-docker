@@ -1,11 +1,12 @@
 FROM benim.repom.com:5001/artifactory/python:3.12-slim
 
-# Sistem bağımlılıkları (curl, jq, git)
+# Sistem bağımlılıkları (curl, jq, git, bash)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
         jq \
         git \
+        bash \
         ca-certificates \
         tzdata && \
     rm -rf /var/lib/apt/lists/*
@@ -17,6 +18,9 @@ RUN pip install --no-cache-dir \
 
 WORKDIR /app
 
+# Env dosyası
+COPY discovery.env /app/discovery.env
+
 # Modüller
 COPY discovery.py /app/discovery.py
 COPY ansible_scanner.py /app/ansible_scanner.py
@@ -26,4 +30,5 @@ COPY correlator.py /app/correlator.py
 
 RUN chmod +x /app/discovery.py
 RUN mkdir -p /app/output
+
 ENTRYPOINT ["/bin/bash", "-c", "set -a && source /app/discovery.env && python3 /app/discovery.py"]
