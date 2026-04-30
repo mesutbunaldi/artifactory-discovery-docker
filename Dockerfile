@@ -26,5 +26,4 @@ COPY correlator.py /app/correlator.py
 
 RUN chmod +x /app/discovery.py
 RUN mkdir -p /app/output
-
-ENTRYPOINT ["python3", "/app/discovery.py"]
+ENTRYPOINT ["/bin/bash", "-c", "set -a && source /app/discovery.env && python3 /app/discovery.py"]
