@@ -1,10 +1,11 @@
 FROM benim.repom.com:5001/artifactory/python:3.12-slim
 
-# Sistem bağımlılıkları (curl ve jq)
+# Sistem bağımlılıkları (curl, jq, git)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
         jq \
+        git \
         ca-certificates \
         tzdata && \
     rm -rf /var/lib/apt/lists/*
@@ -14,15 +15,16 @@ RUN pip install --no-cache-dir \
     pandas==2.2.3 \
     openpyxl==3.1.5
 
-# Çalışma klasörü
 WORKDIR /app
 
-# Script'i kopyala
-COPY artifactory-discovery.sh /app/artifactory-discovery.sh
-RUN chmod +x /app/artifactory-discovery.sh
+# Modüller
+COPY discovery.py /app/discovery.py
+COPY ansible_scanner.py /app/ansible_scanner.py
+COPY jenkins_scanner.py /app/jenkins_scanner.py
+COPY repo_scanner.py /app/repo_scanner.py
+COPY correlator.py /app/correlator.py
 
-# Output klasörünü hazırla (volume mount edilecek)
+RUN chmod +x /app/discovery.py
 RUN mkdir -p /app/output
 
-# Default komut
-ENTRYPOINT ["/app/artifactory-discovery.sh"]
+ENTRYPOINT ["python3", "/app/discovery.py"]
